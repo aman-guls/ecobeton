@@ -80,7 +80,7 @@ def fetch_soilgrids(lat, lon):
     params = [("lat", lat), ("lon", lon), ("value", "mean")]
     params += [("property", p) for p in PROPS]
     params += [("depth", d) for d in LAYERS]
-    js = _get_json(SOILGRIDS_URL, params, retries=1, timeout=(5, 15))
+    js = _get_json(SOILGRIDS_URL, params, retries=2, timeout=(5, 45))
 
     out = {}
     for layer in (js.get("properties") or {}).get("layers", []):
@@ -153,4 +153,20 @@ def fetch_climate(lat, lon):
 
 # ---------------------------------------------------------------- всё сразу
 def fetch_all(lat, lon):
-    raise DataError("upstream_unavailable")
+    """Возвращает (soilgrids, moisture|None, climate|None). Почва обязательна,
+    влажность и климат — опциональны (при сбое приложение продолжит работу)."""
+    lat, lon = round(lat, 4), round(lon, 4)
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        f_soil = ex.submit(_cached, ("soil", lat, lon), lambda: fetch_soilgrids(lat, lon))
+        f_moist = ex.submit(_cached, ("moist", lat, lon), lambda: fetch_moisture(lat, lon))
+        f_clim = ex.submit(_cached, ("clim", lat, lon), lambda: fetch_climate(lat, lon))
+
+        soil = f_soil.result()  # DataError пойдёт наверх
+
+        def optional(f):
+            try:
+                return f.result()
+            except DataError:
+                return None
+
+        return soil, optional(f_moist), optional(f_clim)
