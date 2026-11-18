@@ -80,7 +80,7 @@ def fetch_soilgrids(lat, lon):
     params = [("lat", lat), ("lon", lon), ("value", "mean")]
     params += [("property", p) for p in PROPS]
     params += [("depth", d) for d in LAYERS]
-    js = _get_json(SOILGRIDS_URL, params, retries=2, timeout=(5, 45))
+    js = _get_json(SOILGRIDS_URL, params, retries=1, timeout=(5, 15))
 
     out = {}
     for layer in (js.get("properties") or {}).get("layers", []):
